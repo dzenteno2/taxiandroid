@@ -12,6 +12,9 @@ import android.os.Bundle;
 import android.util.Log;
 import android.view.Menu;
 import android.view.MenuItem;
+import android.view.View;
+import android.view.Window;
+import android.widget.Button;
 import android.widget.ImageView;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -22,10 +25,14 @@ import com.google.android.gms.common.api.GoogleApiClient;
 import com.google.android.gms.location.LocationListener;
 import com.google.android.gms.location.LocationRequest;
 import com.google.android.gms.location.LocationServices;
+import com.google.android.gms.maps.CameraUpdate;
+import com.google.android.gms.maps.CameraUpdateFactory;
 import com.google.android.gms.maps.GoogleMap;
 import com.google.android.gms.maps.MapFragment;
 import com.google.android.gms.maps.OnMapReadyCallback;
 import com.google.android.gms.maps.model.LatLng;
+import com.google.android.gms.maps.model.LatLngBounds;
+import com.google.android.gms.maps.model.Marker;
 import com.google.android.gms.maps.model.MarkerOptions;
 
 import org.apache.http.HttpResponse;
@@ -64,10 +71,12 @@ public class Camera extends ActionBarActivity
 
     private MapFragment mapFragment;
 
+    private GoogleMap googleMap;
+
     private static final int userId = 1;
     private static final String taxiMapUrl = "http://taximap-ezentenoj.rhcloud.com/";
 
-    private boolean rideStarted;
+    private boolean rideStarted, stopRide, panic;
     private int rideId;
 
     protected void createLocationRequest() {
@@ -169,14 +178,37 @@ public class Camera extends ActionBarActivity
         if (requestCode == CAPTURE_IMAGE_ACTIVITY_REQUEST_CODE) {
             if (resultCode == RESULT_OK) {
 
+                rideStarted = false;
+                stopRide = false;
+                panic = false;
+
                 buildGoogleApiClient();
                 createLocationRequest();
 
                 // Image captured and saved to fileUri specified in the Intent
-                Bundle extras = data.getExtras();
-                Bitmap imageBitmap = (Bitmap) extras.get("data");
-                ImageView imgView = (ImageView) findViewById(R.id.plateView);
-                imgView.setImageBitmap(imageBitmap);
+
+                final Button finishButton = (Button) findViewById(R.id.finishRide);
+                finishButton.setOnClickListener(new View.OnClickListener() {
+                    @Override
+                    public void onClick(View v) {
+
+                        stopRide = true;
+                        new MyAsyncTask().execute("");
+
+                    }
+                });
+
+                final Button panicButton = (Button) findViewById(R.id.panic);
+                panicButton.setOnClickListener(new View.OnClickListener(){
+                    @Override
+                    public void onClick(View v) {
+
+                        panic = true;
+                        new MyAsyncTask().execute("");
+
+                    }
+                });
+
 
                 mapFragment = (MapFragment) getFragmentManager().findFragmentById(R.id.map);
                 mapFragment.getMapAsync(this);
@@ -239,18 +271,32 @@ public class Camera extends ActionBarActivity
     @Override
     public void onLocationChanged(Location location) {
         mCurrentLocation = location;
-        DateFormat.getTimeInstance().format(new Date());
+        if(googleMap != null){
+            LatLng latLng = new LatLng(mCurrentLocation.getLatitude(), mCurrentLocation.getLongitude());
 
+            googleMap.addMarker(new MarkerOptions()
+                    .position(latLng)
+                    .title("EseTaxi"));
+
+
+            LatLngBounds.Builder builder = new LatLngBounds.Builder();
+
+            builder.include(latLng);
+
+            LatLngBounds bounds = builder.build();
+
+            CameraUpdate cu = CameraUpdateFactory.newLatLngBounds(bounds, 0);
+
+            googleMap.moveCamera(cu);
+            googleMap.moveCamera(CameraUpdateFactory.zoomTo(14));
+        }
         new MyAsyncTask().execute("");
 
     }
 
     @Override
-    public void onMapReady(GoogleMap googleMap) {
-        LatLng latLng = new LatLng(19.375448, -99.256035);
-        googleMap.addMarker(new MarkerOptions()
-        .position(latLng)
-        .title("EseTaxi"));
+    public void onMapReady(GoogleMap map) {
+        googleMap = map;
 
     }
 
@@ -272,10 +318,22 @@ public class Camera extends ActionBarActivity
         }
 
         public void postData() {
-            if(!rideStarted)
-                startRide();
-            else
-                continueRide();
+            if(stopRide){
+                stopRide();
+            }
+            else {
+                if (!rideStarted)
+                    startRide();
+                else {
+
+                    if (!panic)
+                        continueRide();
+                    else
+                        sendPanic();
+                }
+
+            }
+
 
         }
 
@@ -330,6 +388,62 @@ public class Camera extends ActionBarActivity
             String postUrl = taxiMapUrl + setCoordinate;
             postUrl += "user_id=" + String.valueOf(userId);
             postUrl += "&ride_id=" + String.valueOf(rideId);
+            postUrl += "&coordinate=" + String.valueOf(mCurrentLocation.getLatitude()) + ",";
+            postUrl += "%20" + String.valueOf(mCurrentLocation.getLongitude());
+
+            HttpPost httpPost = new HttpPost(postUrl);
+
+            try{
+                response = httpClient.execute(httpPost);
+                Log.d("TAG", "terminó");
+            }
+            catch (ClientProtocolException e){
+                e.printStackTrace();
+            }
+            catch (IOException e){
+                e.printStackTrace();
+            }
+
+
+        }
+
+        private void stopRide(){
+            HttpClient httpClient = new DefaultHttpClient();
+            HttpResponse response = null;
+
+            String setCoordinate = "setCoordinate.php?";
+            String postUrl = taxiMapUrl + setCoordinate;
+            postUrl += "user_id=" + String.valueOf(userId);
+            postUrl += "&ride_id=" + String.valueOf(rideId);
+            postUrl += "&end_ride=1";
+            postUrl += "&coordinate=" + String.valueOf(mCurrentLocation.getLatitude()) + ",";
+            postUrl += "%20" + String.valueOf(mCurrentLocation.getLongitude());
+
+            HttpPost httpPost = new HttpPost(postUrl);
+
+            try{
+                response = httpClient.execute(httpPost);
+                Log.d("TAG", "terminó");
+            }
+            catch (ClientProtocolException e){
+                e.printStackTrace();
+            }
+            catch (IOException e){
+                e.printStackTrace();
+            }
+
+
+        }
+
+        private void sendPanic(){
+            HttpClient httpClient = new DefaultHttpClient();
+            HttpResponse response = null;
+
+            String setCoordinate = "setCoordinate.php?";
+            String postUrl = taxiMapUrl + setCoordinate;
+            postUrl += "user_id=" + String.valueOf(userId);
+            postUrl += "&ride_id=" + String.valueOf(rideId);
+            postUrl += "&panic=1";
             postUrl += "&coordinate=" + String.valueOf(mCurrentLocation.getLatitude()) + ",";
             postUrl += "%20" + String.valueOf(mCurrentLocation.getLongitude());
 

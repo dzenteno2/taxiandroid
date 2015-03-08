@@ -11,7 +11,8 @@
             android:layout_width="match_parent"
             android:layout_height="match_parent"
             android:name="com.google.android.gms.maps.MapFragment"
-            android:id="@+id/map" />
+            android:id="@+id/map"
+            tools:layout="@layout/activity_camera" />
 
 
         <ImageView
@@ -19,8 +20,27 @@
             android:layout_height="wrap_content"
             android:id="@+id/plateView" />
 
+    <Button
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Terminar viaje"
+        android:id="@+id/finishRide"
+        android:layout_alignParentBottom="true"
+        android:layout_toRightOf="@+id/plateView"
+        android:layout_toEndOf="@+id/plateView"
+        android:background="#ff00d335"
+        android:textColor="#ffffffff" />
 
-
+    <Button
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Pánico"
+        android:id="@+id/panic"
+        android:layout_alignBottom="@+id/map"
+        android:layout_alignRight="@+id/map"
+        android:layout_alignEnd="@+id/map"
+        android:background="#ffff2729"
+        android:textColor="#ffffffff" />
 
 
 </RelativeLayout>
